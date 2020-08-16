@@ -1,0 +1,50 @@
+
+version: '3'
+
+networks:
+    public:
+      driver: bridge
+    dmz:
+      driver: bridge
+
+services:
+  nginx:
+    image: nginx:1.15-alpine
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - public
+      - dmz
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+
+  vouch-proxy:
+    image: voucher/vouch-proxy
+    environment: 
+      - VOUCH_COOKIE_SECURE=true
+      - VOUCH_COOKIE_DOMAIN=${VOUCH_COOKIE_DOMAIN}
+      - VOUCH_ALLOWALLUSERS=true
+      - OAUTH_PROVIDER=${OAUTH_PROVIDER}
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    networks:
+      - dmz
+  
+  certbot:
+    image: certbot/certbot
+    restart: unless-stopped
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    networks:
+      - public
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
