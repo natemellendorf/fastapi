@@ -1,5 +1,5 @@
 from os import environ
-from fastapi import FastAPI, Header, Depends
+from fastapi import FastAPI, Header
 from typing import Optional
 from nornir import InitNornir
 from nornir.plugins.tasks.networking import (
@@ -7,7 +7,6 @@ from nornir.plugins.tasks.networking import (
     napalm_configure,
     napalm_get,
     netmiko_send_config,
-    netmiko_save_config,
 )
 from nornir.plugins.functions.text import print_result
 from pydantic import BaseModel
@@ -33,7 +32,7 @@ class Item(BaseModel):
 
 def change_host_data(host):
     """
-    Change device information as needed
+    Change device information for demo
     """
 
     host.username = environ.get("FAST_USERNAME")
@@ -66,6 +65,10 @@ def init_nornir(tasks: list, dry_run: bool = True, **kwargs):
 
 
 def junos_update_config(task, **kwargs):
+    """
+    Apply config to Junos device
+    """
+
     config = kwargs["config"]
 
     task.run(
@@ -74,6 +77,10 @@ def junos_update_config(task, **kwargs):
 
 
 def junos_get_config(task, **kwargs):
+    """
+    Get facts from Junos device
+    """
+
     task.run(name="Junos - Get Info", task=napalm_get, getters=["get_facts"])
 
 
@@ -100,7 +107,6 @@ def set_fw_hostname(data: Item, x_vouch_user: Optional[str] = Header(None)):
     r = init_nornir(tasks=[junos_update_config], config=data.config)
 
     for host, task_results in r.items():
-        # print(task_results[1].diff)
         output[host] = task_results[1].diff
 
     return {"Result": output}
@@ -116,7 +122,6 @@ def get_fw_hostname(x_vouch_user: Optional[str] = Header(None)):
 
     for host, task_results in r.items():
         facts = task_results[1].result
-        # print(facts["get_facts"]["hostname"])
         sn = facts["get_facts"].get("serial_number")
         hostname = facts["get_facts"].get("hostname")
 
