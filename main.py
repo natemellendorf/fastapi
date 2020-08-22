@@ -10,7 +10,13 @@ from nornir.plugins.tasks.networking import (
 )
 from nornir.plugins.functions.text import print_result
 from pydantic import BaseModel
+from kafka import KafkaConsumer
+from json import loads
+import time
 import asyncio
+import uvicorn
+from concurrent.futures import ThreadPoolExecutor
+
 
 app = FastAPI()
 
@@ -22,14 +28,15 @@ class Item(BaseModel):
     platform: str
     config: str
 
-
 async def task():
-    print("Example async task")
+    t = time.localtime()
+    current_time = time.strftime("%H:%M:%S", t)
+    print(current_time)
 
 
 async def repeat_task():
     while True:
-        await asyncio.sleep(5)
+        await asyncio.sleep(60)
         await task()
 
 
@@ -157,3 +164,10 @@ def get_fw_hostname(x_vouch_user: Optional[str] = Header(None)):
         output[host]["hostname"] = hostname
 
     return {"Result": output}
+
+
+if environ.get("KAFKA_NODE"):
+    print("Starting Kafka consumer...")
+
+elif __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, log_level="info")
