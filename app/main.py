@@ -228,6 +228,7 @@ def start_kafka_consumer(kafka_server):
                 )
 
                 gatekeeper = True
+                return consumer
             
             except Exception as e:
                 logger_kafka.info(f"Unable to connect to Kafka:\n{e}\nRetry in 10 sec...")
