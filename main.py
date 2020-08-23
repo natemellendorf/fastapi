@@ -12,13 +12,36 @@ from nornir.plugins.functions.text import print_result
 from pydantic import BaseModel
 from kafka import KafkaConsumer
 from json import loads
+
+import logging
 import time
 import asyncio
 import uvicorn
 from random import randint
-
 import concurrent.futures
 
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+
+def setup_logger(name, log_file, level=logging.INFO):
+    """
+    Configure logging for the app
+    """
+
+    handler_file = logging.FileHandler(log_file)
+    handler_file.setFormatter(formatter)
+    handler_stream = logging.StreamHandler() 
+    handler_stream.setFormatter(formatter)
+
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler_file)
+    logger.addHandler(handler_stream)
+
+    return logger
+
+logger_general = setup_logger('general', 'general.log')
+logger_fastapi = setup_logger('fastapi', 'fastapi.log')
+logger_kafka = setup_logger('kafka', 'kafka.log')
 
 app = FastAPI()
 
@@ -171,18 +194,23 @@ def get_fw_hostname(x_vouch_user: Optional[str] = Header(None)):
 
 # Kafka Event Logic
 def print_message(message):
-    print(f"\n---\nIN THREAD:\n{message.value}")
+    logger_kafka.info(f"\n---\nIN THREAD:\n{message.value}")
     z = randint(0, 10)
-    print(f"Sleeping for: {str(z)}")
+    logger_kafka.info(f"Sleeping for: {str(z)}")
     time.sleep(z)
-    print(f"{message.value} is now AWAKE\n---\n")
+    logger_kafka.info(f"{message.value} is now AWAKE\n---\n")
     return(f"{message.value}")
 
 
-if environ.get("KAFKA_NODE"):
-    # Run as Kafka consumer
-    print("Starting Kafka consumer...\n")
+def start_kafka_consumer():
+    """
+    Function to establish a connection to requested Kafka servers.
+    Subscribe to the requested topic with the group_id: fastapi.
+    Poll Kafka for new messages.
+    Upon new message, create thread and perform logic on message.
+    """
 
+    # Establish connection with Kafka
     consumer = KafkaConsumer(
         "test",
         auto_offset_reset="earliest",
@@ -210,9 +238,42 @@ if environ.get("KAFKA_NODE"):
                 # Results are returned out of order, so we map them here
                 for completed_task in concurrent.futures.as_completed(thread_result):
                     origional_task = thread_result[completed_task]
-                    print(f"---\nRETURNED:\n{origional_task} - {completed_task.result()}\n---\n")
+                    logger_kafka.info(f"---\nRETURNED:\n{origional_task} - {completed_task.result()}\n---\n")
+                    
 
 
-elif __name__ == "__main__":
-    # Run as API
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, log_level="info")
+def start_app(app):
+    """
+    Function to determine which logic to start.
+    KAFKA_NODE: Start the Kafka consumer logic.
+    FAST_API: Start the FastAPI logic.
+    """
+
+    if app == "KAFKA_NODE":
+        logger_general.info("Stating: Kafka Node")
+        start_kafka_consumer()
+
+    elif app == "FAST_API":
+        logger_general.info("Stating: FastAPI")
+        uvicorn.run("main:app", host="0.0.0.0", port=8000, log_level="info")
+
+# ----------
+# App SOF
+# ----------
+if __name__ == "__main__":
+
+    # Construct a list of processes to start
+    # FastAPI is injected by default
+    apps=["FAST_API"]
+
+    # If KAFKA_NODE, append to process list
+    if environ.get("KAFKA_NODE"):
+        apps.append("KAFKA_NODE")
+
+    # Construct executor for future processing
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=2 ) as processor:
+
+        # Use list comprehension to create new processes
+        for number, prime in zip(apps, processor.map(start_app, apps)):
+            print(f"{number} -> {prime}" % (number, prime))
