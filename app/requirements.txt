@@ -1,0 +1,4 @@
+nornir
+fastapi
+uvicorn
+kafka-python

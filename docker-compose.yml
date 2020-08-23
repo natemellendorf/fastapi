@@ -6,6 +6,8 @@ networks:
       driver: bridge
     dmz:
       driver: bridge
+    private:
+      driver: bridge
 
 services:
   nginx:
@@ -38,6 +40,42 @@ services:
       - "9090:9090"
     networks:
       - dmz
+    
+  fastapi:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_NODE: testing
+      KAFKA_SERVER: kafka:9092
+      FAST_PASSWORD: ${FAST_PASSWORD}
+      FAST_USERNAME: ${FAST_USERNAME}
+      FAST_HOSTNAME: ${FAST_HOSTNAME}
+      FAST_PLATFORM: ${FAST_PLATFORM}
+    restart: unless-stopped
+    networks:
+      - private
+  
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+    networks:
+      - private
+    restart: unless-stopped
+  
+  kafka:
+    build: kafka-docker/.
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: 10.10.0.230
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - private
+    restart: unless-stopped
   
   certbot:
     image: certbot/certbot
@@ -46,5 +84,5 @@ services:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
     networks:
-      - public
+      - private
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
