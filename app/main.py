@@ -302,5 +302,5 @@ if __name__ == "__main__":
     with concurrent.futures.ProcessPoolExecutor(max_workers=2) as processor:
 
         # Use list comprehension to create new processes
-        for number, prime in zip(apps, processor.map(start_app, apps)):
-            print(f"{number} -> {prime}" % (number, prime))
+        for key, value in zip(apps, processor.map(start_app, apps)):
+            print(f"{key} -> {value}"
