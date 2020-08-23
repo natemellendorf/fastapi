@@ -15,7 +15,9 @@ from json import loads
 import time
 import asyncio
 import uvicorn
-from concurrent.futures import ThreadPoolExecutor
+from random import randint
+
+import concurrent.futures
 
 
 app = FastAPI()
@@ -27,6 +29,7 @@ class Item(BaseModel):
     password: str
     platform: str
     config: str
+
 
 async def task():
     t = time.localtime()
@@ -166,8 +169,50 @@ def get_fw_hostname(x_vouch_user: Optional[str] = Header(None)):
     return {"Result": output}
 
 
+# Kafka Event Logic
+def print_message(message):
+    print(f"\n---\nIN THREAD:\n{message.value}")
+    z = randint(0, 10)
+    print(f"Sleeping for: {str(z)}")
+    time.sleep(z)
+    print(f"{message.value} is now AWAKE\n---\n")
+    return(f"{message.value}")
+
+
 if environ.get("KAFKA_NODE"):
-    print("Starting Kafka consumer...")
+    # Run as Kafka consumer
+    print("Starting Kafka consumer...\n")
+
+    consumer = KafkaConsumer(
+        "test",
+        auto_offset_reset="earliest",
+        enable_auto_commit=True,
+        group_id="fastapi",
+        value_deserializer=lambda m: loads(m.decode("utf-8")),
+        bootstrap_servers=["10.10.0.230:32780"],
+    )
+
+    # Construct executor for future threading
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=32, thread_name_prefix="thread"
+    ) as executor:
+
+        # Create infinite loop to poll Kafka for events
+        while True:
+            # Poll Kafka for new events
+            msg_pack = consumer.poll(timeout_ms=500)
+            # Deconstruct returned Kafka event
+            for tp, messages in msg_pack.items():
+                # For each message in the event..
+                for message in messages:
+                    # Create a new thread to process the message
+                    thread_result = {executor.submit(print_message, message): message}
+                # Results are returned out of order, so we map them here
+                for completed_task in concurrent.futures.as_completed(thread_result):
+                    origional_task = thread_result[completed_task]
+                    print(f"---\nRETURNED:\n{origional_task} - {completed_task.result()}\n---\n")
+
 
 elif __name__ == "__main__":
+    # Run as API
     uvicorn.run("main:app", host="0.0.0.0", port=8000, log_level="info")
