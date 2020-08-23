@@ -271,11 +271,10 @@ def start_app(app):
     """
 
     depends = []
-    depends.append(environ.get("KAFKA_NODE"))
     depends.append(environ.get("KAFKA_SERVER"))
     depends.append(environ.get("KAFKA_TOPIC"))
 
-    if all(depends):
+    if app == "KAFKA_NODE" and all(depends):
         logger_general.info("Stating: Kafka Consumer")
         kafka_server = environ.get("KAFKA_SERVER")
         kafka_topic = environ.get("KAFKA_TOPIC")
