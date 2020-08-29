@@ -1,6 +1,6 @@
 FROM python:3.8.3-alpine3.10
 
-COPY ./app /app
+COPY ./ /app
 
 WORKDIR /app
 
@@ -22,4 +22,3 @@ RUN /usr/local/bin/python -m pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 ENTRYPOINT python3 main.py
-

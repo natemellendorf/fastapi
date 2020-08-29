@@ -1,0 +1,62 @@
+a {
+    color: #868e96;
+}
+a:visited {
+    color: #868e96;
+}
+a:hover {
+    color: #868e96;
+}
+a:focus {
+    color: #868e96;
+}
+a:active {
+    color: #868e96;
+}
+body { 
+    background-image: url('/static/poc.jpg');
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-size: cover;
+}
+.special-card {
+    opacity: .95;
+}
+input[type=text], textarea {
+    background-color: rgb(44, 44, 44)!important;
+    color: white!important;
+}
+input[type=text]:focus {
+    background-color: rgb(44, 44, 44)!important;
+    color: white!important;
+}
+input[type=text]:disabled {
+    background-color: rgb(44, 44, 44)!important;
+    color: white!important;
+}
+
+input[type=checkbox] {
+    background-color: rgb(44, 44, 44);
+    color: rgb(44, 44, 44);
+}
+input[type=checkbox]:focus {
+    background-color: rgb(44, 44, 44);
+    color: rgb(44, 44, 44);
+}
+
+.special-select {
+    background: rgb(44, 44, 44);
+    color: white;
+}
+.special-select:focus {
+    background: rgb(44, 44, 44);
+    color: white;
+}
+.special-select option {
+    background-color: rgb(44, 44, 44);
+    color: white;
+}
+
+code {
+    color: #868e96;
+}

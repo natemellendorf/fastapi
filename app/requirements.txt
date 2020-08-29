@@ -2,3 +2,5 @@ nornir
 fastapi
 uvicorn
 kafka-python
+aiofiles
+uvicorn

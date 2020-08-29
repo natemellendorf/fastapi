@@ -1,5 +1,12 @@
 from os import environ
-from fastapi import FastAPI, Header
+from uvicorn.config import LOGGING_CONFIG
+
+from fastapi import FastAPI, Request, Header, WebSocket
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from starlette.responses import PlainTextResponse, RedirectResponse
+
 from typing import Optional
 from nornir import InitNornir
 from nornir.plugins.tasks.networking import (
@@ -10,8 +17,8 @@ from nornir.plugins.tasks.networking import (
 )
 from nornir.plugins.functions.text import print_result
 from pydantic import BaseModel
-from kafka import KafkaConsumer
-from json import loads
+from kafka import KafkaConsumer, KafkaProducer
+from json import loads, dumps
 
 import logging
 import time
@@ -46,7 +53,8 @@ logger_fastapi = setup_logger("fastapi", "fastapi.log")
 logger_kafka = setup_logger("kafka", "kafka.log")
 
 app = FastAPI()
-
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
 class Item(BaseModel):
     hostname: str
@@ -132,8 +140,23 @@ def junos_get_config(task, **kwargs):
 
 
 @app.get("/")
-async def root():
-    return {"message": "Hello, World!"}
+async def index():
+    """
+    Default landing page / redirect for GUI.
+    """
+
+    return RedirectResponse(url="/hub")
+
+
+@app.get("/hub", response_class=HTMLResponse)
+async def hub(request: Request, x_vouch_user: Optional[str] = Header(None)):
+    """
+    Homepage for the GUI.
+    """
+
+    hub_answers = {"request": request, "title": "Hub", "user": x_vouch_user}
+
+    return templates.TemplateResponse("hub.html", hub_answers)
 
 
 @app.get("/user")
@@ -145,7 +168,7 @@ async def get_current_user(x_vouch_user: Optional[str] = Header(None)):
     return {"X-Vouch-User": x_vouch_user}
 
 
-@app.post("/set/fw/hostname")
+@app.post("/fw/hostname")
 def set_fw_hostname(data: Item, x_vouch_user: Optional[str] = Header(None)):
     """
     Change the hostname of the demo Junos device\\
@@ -173,7 +196,21 @@ def set_fw_hostname(data: Item, x_vouch_user: Optional[str] = Header(None)):
     return {"Result": output}
 
 
-@app.get("/get/fw/hostname")
+@app.post("/event")
+async def post_kafka_event(data: Item, x_vouch_user: Optional[str] = Header(None)):
+
+    producer = KafkaProducer(
+        value_serializer=lambda m: dumps(m).encode("utf-8"),
+        bootstrap_servers=["10.10.0.230:9092"],
+    )
+
+    await producer.send("test", value={f"Task": f"{x_vouch_user} requested: {str(data)}"})
+    await producer.flush()
+
+    return {"Result": f"Task": f"{x_vouch_user} requested: {str(data)}"}
+
+
+@app.get("/fw/hostname")
 def get_fw_hostname(x_vouch_user: Optional[str] = Header(None)):
     """
     Get the hostname of the demo Junos device
@@ -303,4 +340,5 @@ if __name__ == "__main__":
 
         # Use list comprehension to create new processes
         for key, value in zip(apps, processor.map(start_app, apps)):
-            print(f"{key} -> {value}"
+            print(f"{key} -> {value}")
+

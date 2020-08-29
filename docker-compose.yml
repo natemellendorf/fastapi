@@ -1,5 +1,5 @@
 
-version: '3'
+version: '3.8'
 
 networks:
     public:
@@ -24,7 +24,7 @@ services:
     networks:
       - public
       - dmz
-    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+      - private
 
   vouch-proxy:
     image: voucher/vouch-proxy
@@ -42,7 +42,9 @@ services:
       - dmz
     
   fastapi:
-    build: .
+    build:
+      context: ./app
+      network: host
     ports:
       - "8000:8000"
     environment:
@@ -66,7 +68,9 @@ services:
     restart: unless-stopped
   
   kafka:
-    build: kafka-docker/.
+    build: 
+      context: ./kafka-docker
+      network: host
     ports:
       - "9092:9092"
     environment:

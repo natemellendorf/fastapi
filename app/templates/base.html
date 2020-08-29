@@ -1,0 +1,31 @@
+{%- block head %}
+<title>{% block title %}{{title|default}}{% endblock title %}</title>
+<link rel="icon" href="/static/favicon.ico" sizes="16x16">
+{%- block styles %}
+<!-- JavaScript -->
+<script src="/static/js/socket.io.min.js"></script>
+<script src="/static/js/jquery-3.3.1.min.js"></script>
+
+<!-- Bootstrap -->
+<link rel="stylesheet" type="text/css" href="/static/css/bootstrap.css">
+<script src="/static/js/bootstrap.js"></script>
+
+<!-- Custom Imports -->
+<link rel="stylesheet" type="text/css" href="/static/css/custom.css">
+
+{%- endblock styles %}
+{%- endblock head %}
+
+{% block body_attribs %}
+{% endblock body_attribs %}
+
+{% block content %}
+<div class="container text-dark rounded">
+
+    {% include 'navbar.html' %}
+    <br>
+    {% block app_content %}
+    {% endblock %}
+
+</div>
+{% endblock %}
