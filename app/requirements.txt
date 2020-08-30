@@ -4,3 +4,4 @@ uvicorn
 kafka-python
 aiofiles
 uvicorn
+websockets
