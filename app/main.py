@@ -26,10 +26,7 @@ import asyncio
 import uvicorn
 from random import randint
 import concurrent.futures
-
-import ssl
 import websockets
-from websocket import create_connection
 from typing import List
 
 formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
@@ -208,7 +205,7 @@ async def send_event(data):
     try:
         producer = KafkaProducer(
             value_serializer=lambda m: dumps(m).encode("utf-8"),
-            bootstrap_servers=["10.10.0.230:9092"],
+            bootstrap_servers=["kafka:9092"],
         )
 
         producer.send("test", value=dumps(data))
@@ -290,7 +287,7 @@ def process_kafka_event(message):
 
     async def websocket_test(message):
         client = randint(100, 1000)
-        uri = f"ws://10.10.0.230:8000/event/{client}"
+        uri = f"ws://fastapi:8000/event/{client}"
 
         async with websockets.connect(uri) as websock:
             await websock.send(f"Thread received: {message}")

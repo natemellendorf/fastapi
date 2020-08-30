@@ -16,14 +16,11 @@ export CERTBOT_DOMAIN=app.example.com
 export CERTBOT_EMAIL=xxxxxx
 
 cd fastapi
-sudo docker-compose up
+docker-compose build --no-cache
 ```
 
-Start FastAPI
+Start the project
 
 ```
-pip3 install pipenv
-pipenv shell
-pip install -r requirements.txt
-python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+docker-compose up
 ```

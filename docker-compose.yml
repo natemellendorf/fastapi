@@ -75,7 +75,7 @@ services:
       - "9092:9092"
     environment:
       KAFKA_CREATE_TOPICS: "test:1:1"
-      KAFKA_ADVERTISED_HOST_NAME: 10.10.0.230
+      KAFKA_ADVERTISED_HOST_NAME: kafka
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
