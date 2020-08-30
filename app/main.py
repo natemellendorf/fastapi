@@ -1,7 +1,7 @@
 from os import environ
 from uvicorn.config import LOGGING_CONFIG
 
-from fastapi import FastAPI, Request, Header, WebSocket
+from fastapi import FastAPI, Request, Header, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -26,6 +26,11 @@ import asyncio
 import uvicorn
 from random import randint
 import concurrent.futures
+
+import ssl
+import websockets
+from websocket import create_connection
+from typing import List
 
 formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
 
@@ -63,6 +68,8 @@ class Item(BaseModel):
     platform: str
     config: str
 
+class Event(BaseModel):
+    event: str
 
 async def task():
     t = time.localtime()
@@ -196,18 +203,27 @@ def set_fw_hostname(data: Item, x_vouch_user: Optional[str] = Header(None)):
     return {"Result": output}
 
 
+async def send_event(data):
+
+    try:
+        producer = KafkaProducer(
+            value_serializer=lambda m: dumps(m).encode("utf-8"),
+            bootstrap_servers=["10.10.0.230:9092"],
+        )
+
+        producer.send("test", value=dumps(data))
+        producer.flush()
+
+    except Exception as e:
+        print(f"ERROR: {e}")
+
+
 @app.post("/event")
-async def post_kafka_event(data: Item, x_vouch_user: Optional[str] = Header(None)):
+async def post_kafka_event(data: Event, x_vouch_user: Optional[str] = Header(None)):
 
-    producer = KafkaProducer(
-        value_serializer=lambda m: dumps(m).encode("utf-8"),
-        bootstrap_servers=["10.10.0.230:9092"],
-    )
+    asyncio.create_task(send_event(data.event))
 
-    await producer.send("test", value={f"Task": f"{x_vouch_user} requested: {str(data)}"})
-    await producer.flush()
-
-    return {"Result": f"Task": f"{x_vouch_user} requested: {str(data)}"}
+    return {"Result": "Event submitted"}
 
 
 @app.get("/fw/hostname")
@@ -231,14 +247,75 @@ def get_fw_hostname(x_vouch_user: Optional[str] = Header(None)):
     return {"Result": output}
 
 
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def send_personal_message(self, message: str, websocket: WebSocket):
+        await websocket.send_text(message)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            await connection.send_text(message)
+
+
+manager = ConnectionManager()
+
+@app.websocket("/event/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: int):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            print(f"RECEIVED: {data}")
+            #await manager.send_personal_message(f"You wrote: {data}", websocket)
+            await manager.broadcast(f"Client #{client_id} says: {data}")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        await manager.broadcast(f"Client #{client_id} left the chat")
+
+
+
 # Kafka Event Logic
-def print_message(message):
+def process_kafka_event(message):
+
     logger_kafka.info(f"\n---\nIN THREAD:\n{message.value}")
-    z = randint(0, 10)
-    logger_kafka.info(f"Sleeping for: {str(z)}")
-    time.sleep(z)
-    logger_kafka.info(f"{message.value} is now AWAKE\n---\n")
-    return f"{message.value}"
+
+    async def websocket_test(message):
+        client = randint(100, 1000)
+        uri = f"ws://10.10.0.230:8000/event/{client}"
+
+        async with websockets.connect(uri) as websock:
+            await websock.send(f"Thread received: {message}")
+    
+    if message.value == "\"string\"":
+        logger_kafka.info(f"SThis Kafka event created by API request!")
+        result = "This Kafka event created by API request!"
+
+    else:
+        z = randint(0, 10)
+        logger_kafka.info(f"Sleeping for: {str(z)}")    
+        time.sleep(z)
+        logger_kafka.info(f"{message.value} is now AWAKE\n---\n")
+
+        result = message.value
+
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(websocket_test(result))
+
+    except Exception as e:
+        logger_kafka.info(f"THREAD - WS ERROR: {e}\n")
+
+    return f"{result}"
 
 
 def start_kafka_consumer(kafka_server, kafka_topic):
@@ -291,7 +368,7 @@ def start_kafka_consumer(kafka_server, kafka_topic):
                 # For each message in the event..
                 for message in messages:
                     # Create a new thread to process the message
-                    thread_result = {executor.submit(print_message, message): message}
+                    thread_result = {executor.submit(process_kafka_event, message): message}
                 # Results are returned out of order, so we map them here
                 for completed_task in concurrent.futures.as_completed(thread_result):
                     origional_task = thread_result[completed_task]
